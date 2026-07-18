@@ -52,10 +52,18 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         }
     }
     
-    # 1. Inject Cookies if provided (100% bypass for datacenter bans)
-    cookies_str = os.getenv("YOUTUBE_COOKIES")
+    # 1. Inject platform-specific Cookies if provided (100% bypass for datacenter bans)
+    platform = get_platform(url)
+    cookies_str = None
+    if platform == 'youtube':
+        cookies_str = os.getenv("YOUTUBE_COOKIES")
+    elif platform == 'instagram':
+        cookies_str = os.getenv("INSTAGRAM_COOKIES")
+    elif platform == 'tiktok':
+        cookies_str = os.getenv("TIKTOK_COOKIES")
+        
     if cookies_str:
-        cookies_path = job_dir / "cookies.txt"
+        cookies_path = job_dir / f"{platform}_cookies.txt"
         cookies_path.write_text(cookies_str.strip())
         ydl_opts['cookiefile'] = str(cookies_path)
     

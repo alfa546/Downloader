@@ -54,7 +54,7 @@ def sanitize_cookies(cookies_str: str) -> str:
         line = line.strip()
         if not line:
             continue
-        if line.startswith("#"):
+        if line.startswith("#") and not line.startswith("#HttpOnly_"):
             if "Netscape" in line:
                 has_header = True
             lines.append(line)

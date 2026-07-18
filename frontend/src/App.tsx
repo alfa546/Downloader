@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Video, AlertCircle, Loader2, Download, Settings, Zap } from 'lucide-react'
 import './App.css'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 function App() {
   const [url, setUrl] = useState('')
   const [jobId, setJobId] = useState<string | null>(null)
@@ -42,7 +44,7 @@ function App() {
     setStepDurations({})
     setTotalSeconds(0)
     try {
-      const res = await fetch('http://localhost:8000/jobs', {
+      const res = await fetch(`${API_BASE_URL}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, remove_watermark: removeWatermark })
@@ -62,7 +64,7 @@ function App() {
     if (jobId && status !== 'done' && status !== 'failed' && status !== 'awaiting_quality_choice') {
       interval = window.setInterval(async () => {
         try {
-          const res = await fetch(`http://localhost:8000/jobs/${jobId}/status`)
+          const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/status`)
           const data = await res.json()
           setStatus(data.status)
           setProgress(data.progress ?? null)
@@ -104,7 +106,7 @@ function App() {
   const finalizeJob = async () => {
     setShowModal(false)
     try {
-      const res = await fetch(`http://localhost:8000/jobs/${jobId}/finalize?quality=${quality}`, {
+      const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/finalize?quality=${quality}`, {
         method: 'POST'
       })
       const data = await res.json()
@@ -243,11 +245,11 @@ function App() {
                 🚀 Processed in {totalSeconds} seconds!
               </div>
               <video 
-                src={`http://localhost:8000/jobs/${jobId}/download`} 
+                src={`${API_BASE_URL}/jobs/${jobId}/download`} 
                 controls 
                 className="video-player"
               />
-              <a href={`http://localhost:8000/jobs/${jobId}/download`} className="download-btn" download>
+              <a href={`${API_BASE_URL}/jobs/${jobId}/download`} className="download-btn" download>
                 <Download size={18} />
                 Download Final Video
               </a>

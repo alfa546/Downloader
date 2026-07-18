@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Video, AlertCircle, Loader2, Download, Settings, ChevronRight } from 'lucide-react'
+import { Video, AlertCircle, Loader2, Download, Settings, ChevronRight, Zap } from 'lucide-react'
 import './App.css'
 
 function App() {
@@ -20,7 +20,7 @@ function App() {
     'queued_for_processing': 'Preparing to process...',
     'resizing': 'Applying fast-path resize...',
     'upscaling': 'AI Upscaling in progress...',
-    'done': 'Process complete!',
+    'done': '✨ Process complete!',
     'failed': 'Process failed.'
   }
 
@@ -106,12 +106,20 @@ function App() {
     { key: 'done', label: 'Ready to play' }
   ]
 
+  const isProcessing = !!jobId && status !== 'done' && status !== 'failed'
+
   return (
     <div className="app-container">
-      <Video size={48} className="logo-icon" />
-      <h1>MediaForge</h1>
-      <p className="subtitle">Download, clean, and upscale videos from TikTok, Instagram, YouTube, and Facebook.</p>
+      {/* Branding */}
+      <Video size={44} className="logo-icon" />
+      <div className="brand-badge">
+        <span className="badge-dot"></span>
+        Lightning Fast
+      </div>
+      <h1>HeroDownloader</h1>
+      <p className="subtitle">Download, clean, and upscale videos from any platform — in seconds.</p>
       
+      {/* URL Input */}
       <div className="input-group">
         <input 
           type="text" 
@@ -119,13 +127,15 @@ function App() {
           onChange={e => setUrl(e.target.value)} 
           placeholder="Paste video URL here..."
           disabled={isProcessing}
+          onKeyDown={e => e.key === 'Enter' && submitJob()}
         />
-        <button onClick={submitJob} disabled={isProcessing || !url}>
-          {isProcessing ? <Loader2 className="animate-spin" /> : <ChevronRight />}
-          Process
+        <button className="btn-primary" onClick={submitJob} disabled={isProcessing || !url}>
+          {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
+          {isProcessing ? 'Processing...' : 'Download'}
         </button>
       </div>
 
+      {/* Options */}
       <div className="options-container">
         <label className="toggle-label">
           <input 
@@ -139,17 +149,19 @@ function App() {
         </label>
       </div>
 
+      {/* Error */}
       {error && (
         <div className="error-message">
-          <AlertCircle size={20} />
+          <AlertCircle size={18} />
           {error}
         </div>
       )}
       
+      {/* Status Card */}
       {status && status !== 'submitting' && (
         <div className="status-card">
           <div className="status-header">
-            {isProcessing && <Loader2 className="animate-spin" size={20} />}
+            {isProcessing && <Loader2 className="animate-spin" size={18} />}
             {statusMap[status] || status}
           </div>
           
@@ -183,6 +195,7 @@ function App() {
             })}
           </div>
 
+          {/* Result */}
           {status === 'done' && (
             <div className="result-container">
               <video 
@@ -191,7 +204,7 @@ function App() {
                 className="video-player"
               />
               <a href={`http://localhost:8000/jobs/${jobId}/download`} className="download-btn" download>
-                <Download size={20} />
+                <Download size={18} />
                 Download Final Video
               </a>
             </div>
@@ -199,22 +212,34 @@ function App() {
         </div>
       )}
 
+      {/* Quality Modal */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-card">
             <h3><Settings size={20} style={{ verticalAlign: 'middle', marginRight: '8px' }}/> Output Quality</h3>
             <select value={quality} onChange={e => setQuality(e.target.value)}>
-              <option value="480p">480p (Fast)</option>
-              <option value="720p">720p (Standard)</option>
-              <option value="1080p">1080p (HD)</option>
-              <option value="4k">4K (AI Upscale - Slow)</option>
+              <option value="480p">480p — Fast</option>
+              <option value="720p">720p — Standard</option>
+              <option value="1080p">1080p — HD</option>
+              <option value="4k">4K — AI Upscale</option>
             </select>
-            <button onClick={finalizeJob}>
+            <button className="btn-primary" onClick={finalizeJob}>
               Confirm Selection
             </button>
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <div className="app-footer">
+        <div className="supported-platforms">
+          <span className="platform-tag">YouTube</span>
+          <span className="platform-tag">TikTok</span>
+          <span className="platform-tag">Instagram</span>
+          <span className="platform-tag">Facebook</span>
+        </div>
+        <p style={{ marginTop: '12px' }}>Built with ⚡ by HeroDownloader</p>
+      </div>
     </div>
   )
 }

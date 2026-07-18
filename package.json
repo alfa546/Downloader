@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Root package.json to trigger frontend build on Heroku",
   "scripts": {
-    "build": "cd frontend && npm install && npm run build"
+    "build": "cd frontend && npm install --include=dev && npm run build"
   },
   "cacheDirectories": [
     "frontend/node_modules"

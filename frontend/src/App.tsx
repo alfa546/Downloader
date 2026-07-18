@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Video, AlertCircle, Loader2, Download, Settings, ChevronRight, Zap } from 'lucide-react'
+import { Video, AlertCircle, Loader2, Download, Settings, Zap } from 'lucide-react'
 import './App.css'
 
 function App() {

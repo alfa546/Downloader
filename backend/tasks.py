@@ -44,11 +44,6 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Sec-Fetch-Mode': 'navigate'
-        },
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['tvhtml5', 'ios']
-            }
         }
     }
     

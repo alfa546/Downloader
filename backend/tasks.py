@@ -70,6 +70,19 @@ def sanitize_cookies(cookies_str: str) -> str:
         
     return "\n".join(lines)
 
+def fetch_free_proxies():
+    try:
+        import urllib.request
+        url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=US,GB,DE,FR,CA&ssl=yes&anonymity=elite"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=8) as response:
+            content = response.read().decode('utf-8')
+            proxies = [line.strip() for line in content.splitlines() if line.strip()]
+            return proxies
+    except Exception as e:
+        print(f"[PROXY-FALLBACK] Failed to fetch proxies: {e}")
+        return []
+
 import shutil
 
 @celery_app.task(bind=True)
@@ -131,9 +144,58 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
             json.dump(metadata, f)
             
         set_job_status(job_id, "awaiting_quality_choice")
-    except Exception as e:
-        set_job_status(job_id, "failed", error=str(e))
-        raise e
+    except Exception as initial_error:
+        error_msg = str(initial_error)
+        is_blocked = any(block_indicator in error_msg.lower() for block_indicator in [
+            "confirm you're not a bot", 
+            "login required", 
+            "rate-limit",
+            "not available",
+            "403", 
+            "429",
+            "sign in"
+        ])
+        
+        # Self-healing proxy fallback
+        custom_proxy = os.getenv("PROXY_URL")
+        if is_blocked and not custom_proxy:
+            print("[PROXY-FALLBACK] Direct connection blocked. Activating automated proxy rotation...")
+            proxies = fetch_free_proxies()
+            if proxies:
+                success = False
+                for idx, prx in enumerate(proxies[:10]): # Try top 10 proxies
+                    print(f"[PROXY-FALLBACK] Attempt {idx+1}/10 using proxy: {prx}")
+                    temp_opts = ydl_opts.copy()
+                    temp_opts['proxy'] = f"http://{prx}"
+                    temp_opts['socket_timeout'] = 15 # Fast timeout
+                    try:
+                        with yt_dlp.YoutubeDL(temp_opts) as ydl_temp:
+                            ydl_temp.download([url])
+                        print(f"[PROXY-FALLBACK] Download succeeded using proxy: {prx}!")
+                        
+                        metadata = {
+                            "url": url,
+                            "remove_watermark": remove_watermark,
+                            "platform": get_platform(url)
+                        }
+                        with open(job_dir / "metadata.json", "w") as f:
+                            json.dump(metadata, f)
+                            
+                        set_job_status(job_id, "awaiting_quality_choice")
+                        success = True
+                        break
+                    except Exception as pe:
+                        print(f"[PROXY-FALLBACK] Proxy {prx} failed: {pe}")
+                
+                if not success:
+                    set_job_status(job_id, "failed", error=f"Bypassing failed. Google/Instagram blocked connection: {error_msg}")
+                    raise initial_error
+            else:
+                set_job_status(job_id, "failed", error=f"Blocked by platform and no fallback proxies found: {error_msg}")
+                raise initial_error
+        else:
+            set_job_status(job_id, "failed", error=error_msg)
+            raise initial_error
 
 @celery_app.task(bind=True)
 def finalize_video_task(self, job_id: str, quality: str):

@@ -103,6 +103,8 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         'retries': 3,
         'fragment_retries': 3,
         'socket_timeout': 30,
+        'geo_bypass': True,
+        'noplaylist': True,
         'extractor_args': {
             'youtube': {
                 'player_client': ['tvhtml5', 'ios', 'android']
@@ -163,11 +165,11 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
             proxies = fetch_free_proxies()
             if proxies:
                 success = False
-                for idx, prx in enumerate(proxies[:10]): # Try top 10 proxies
-                    print(f"[PROXY-FALLBACK] Attempt {idx+1}/10 using proxy: {prx}")
+                for idx, prx in enumerate(proxies[:4]): # Try top 4 proxies (limit to prevent hangs)
+                    print(f"[PROXY-FALLBACK] Attempt {idx+1}/4 using proxy: {prx}")
                     temp_opts = ydl_opts.copy()
                     temp_opts['proxy'] = f"http://{prx}"
-                    temp_opts['socket_timeout'] = 15 # Fast timeout
+                    temp_opts['socket_timeout'] = 4 # Super fast 4-second timeout for dead proxies
                     try:
                         with yt_dlp.YoutubeDL(temp_opts) as ydl_temp:
                             ydl_temp.download([url])

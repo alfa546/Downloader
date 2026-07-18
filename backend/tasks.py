@@ -28,6 +28,10 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
     
     output_path = job_dir / "raw.mp4"
     
+    # Check if aria2c is available for multi-threaded downloading
+    aria2c_path = os.path.join(os.path.dirname(__file__), 'aria2c.exe')
+    use_aria2 = os.path.exists(aria2c_path)
+    
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
         'outtmpl': str(output_path),
@@ -40,7 +44,7 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         'no_warnings': True,
         'retries': 15,
         'fragment_retries': 15,
-        'socket_timeout': 45,
+        'socket_timeout': 60,
         'concurrent_fragment_downloads': 10,
         'extractor_args': {
             'youtube': {
@@ -48,6 +52,20 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
             }
         }
     }
+    
+    # aria2c = 16 parallel connections = 10x faster
+    if use_aria2:
+        ydl_opts['external_downloader'] = aria2c_path
+        ydl_opts['external_downloader_args'] = {
+            'default': [
+                '--max-connection-per-server=16',
+                '--min-split-size=1M',
+                '--split=16',
+                '--max-concurrent-downloads=16',
+                '--max-overall-download-limit=0',
+                '--file-allocation=none'
+            ]
+        }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

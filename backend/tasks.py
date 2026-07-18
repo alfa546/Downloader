@@ -8,6 +8,7 @@ from pathlib import Path
 from watermark import remove_watermark
 from upscale import upscale_video
 import ffmpeg
+import json
 
 def get_platform(url: str) -> str:
     domain = urlparse(url).netloc.lower()
@@ -48,70 +49,82 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
             
-        platform = get_platform(url)
-        if remove_watermark:
-            remove_watermark_task.delay(job_id, platform)
-        else:
-            raw_path = job_dir / "raw.mp4"
-            clean_path = job_dir / "clean.mp4"
-            shutil.copy(str(raw_path), str(clean_path))
-            set_job_status(job_id, "awaiting_quality_choice")
+        # Save job metadata for the single-pass finalizing step
+        metadata = {
+            "url": url,
+            "remove_watermark": remove_watermark,
+            "platform": get_platform(url)
+        }
+        with open(job_dir / "metadata.json", "w") as f:
+            json.dump(metadata, f)
+            
+        set_job_status(job_id, "awaiting_quality_choice")
     except Exception as e:
         set_job_status(job_id, "failed", error=str(e))
         raise e
 
 @celery_app.task(bind=True)
-def remove_watermark_task(self, job_id: str, platform: str):
-    set_job_status(job_id, "removing_watermark")
-    
+def finalize_video_task(self, job_id: str, quality: str):
     job_dir = settings.STORAGE_DIR / job_id
+    
+    # Load metadata
+    metadata_path = job_dir / "metadata.json"
+    if not metadata_path.exists():
+        set_job_status(job_id, "failed", error="Job metadata not found.")
+        return
+        
+    with open(metadata_path, "r") as f:
+        metadata = json.load(f)
+        
+    remove_wm = metadata.get("remove_watermark", True)
+    platform = metadata.get("platform", "unknown")
+    
     raw_path = job_dir / "raw.mp4"
-    clean_path = job_dir / "clean.mp4"
-    
-    try:
-        remove_watermark(raw_path, clean_path, platform)
-        set_job_status(job_id, "awaiting_quality_choice")
-    except Exception as e:
-        set_job_status(job_id, "failed", error=f"Watermark removal failed: {str(e)}")
-        raise e
-
-@celery_app.task(bind=True)
-def resize_task(self, job_id: str, quality: str):
-    set_job_status(job_id, "resizing")
-    
-    job_dir = settings.STORAGE_DIR / job_id
-    clean_path = job_dir / "clean.mp4"
     final_path = job_dir / "final.mp4"
     
-    heights = {
-        "480p": 480,
-        "720p": 720,
-        "1080p": 1080
-    }
-    target_height = heights.get(quality, 720)
-    
     try:
-        (
-            ffmpeg
-            .input(str(clean_path))
-            .output(str(final_path), vf=f'scale=-2:{target_height}', vcodec='libx264', acodec='copy')
-            .overwrite_output()
-            .run(quiet=True)
-        )
-        set_job_status(job_id, "done")
+        if quality == "4k":
+            set_job_status(job_id, "upscaling", progress=0)
+            # If watermark removal is requested, remove it, then upscale
+            if remove_wm:
+                clean_path = job_dir / "clean.mp4"
+                remove_watermark(raw_path, clean_path, platform)
+                upscale_video(clean_path, final_path, job_id)
+                if clean_path.exists():
+                    os.remove(clean_path)
+            else:
+                upscale_video(raw_path, final_path, job_id)
+            set_job_status(job_id, "done", progress=100)
+        else:
+            set_job_status(job_id, "resizing")
+            heights = {
+                "480p": 480,
+                "720p": 720,
+                "1080p": 1080
+            }
+            target_height = heights.get(quality, 720)
+            
+            # Check if delogo is configured for this platform
+            from watermark import WATERMARK_REGIONS
+            regions = WATERMARK_REGIONS.get(platform, [])
+            
+            # Combine delogo and scaling filter graph to avoid double encoding
+            if remove_wm and regions:
+                delogo_filters = []
+                for (x, y, w, h) in regions:
+                    delogo_filters.append(f"delogo=x={x}:y={y}:w={w}:h={h}")
+                filter_graph = ",".join(delogo_filters) + f",scale=-2:{target_height}"
+            else:
+                filter_graph = f"scale=-2:{target_height}"
+                
+            (
+                ffmpeg
+                .input(str(raw_path))
+                .output(str(final_path), vf=filter_graph, vcodec='libx264', acodec='copy')
+                .overwrite_output()
+                .run(quiet=True)
+            )
+            set_job_status(job_id, "done")
     except Exception as e:
-        set_job_status(job_id, "failed", error=f"Resizing failed: {str(e)}")
-        raise e
-
-@celery_app.task(bind=True)
-def upscale_4k_task(self, job_id: str):
-    set_job_status(job_id, "upscaling", progress=0)
-    job_dir = settings.STORAGE_DIR / job_id
-    clean_path = job_dir / "clean.mp4"
-    final_path = job_dir / "final.mp4"
-    try:
-        upscale_video(clean_path, final_path, job_id)
-        set_job_status(job_id, "done", progress=100)
-    except Exception as e:
-        set_job_status(job_id, "failed", error=f"4K Upscaling failed: {str(e)}")
+        set_job_status(job_id, "failed", error=str(e))
         raise e

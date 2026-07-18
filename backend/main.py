@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from schemas import JobCreate, JobStatus
 from redis_client import set_job_status, get_job_status
-from tasks import download_video, resize_task, upscale_4k_task
+from tasks import download_video, finalize_video_task
 
 app = FastAPI(title=settings.PROJECT_NAME, openapi_url=f"{settings.API_V1_STR}/openapi.json")
 
@@ -58,10 +58,7 @@ def finalize_job(job_id: str, quality: str = Query(..., pattern="^(480p|720p|108
         
     set_job_status(job_id, "queued_for_processing")
     
-    if quality == "4k":
-        upscale_4k_task.delay(job_id)
-    else:
-        resize_task.delay(job_id, quality)
+    finalize_video_task.delay(job_id, quality)
         
     return {"job_id": job_id, "status": "queued_for_processing"}
 

@@ -116,7 +116,7 @@ function App() {
   }
 
   const getStepStatus = (stepKey: string) => {
-    const statusOrder = ['queued', 'downloading', 'removing_watermark', 'awaiting_quality_choice', 'queued_for_processing', 'resizing', 'upscaling', 'done'];
+    const statusOrder = ['queued', 'downloading', 'awaiting_quality_choice', 'queued_for_processing', 'resizing', 'upscaling', 'done'];
     const currentIndex = statusOrder.indexOf(status);
     
     if (status === 'failed') return 'failed';
@@ -137,7 +137,6 @@ function App() {
   const steps = [
     { key: 'queued', label: 'Queued in pipeline' },
     { key: 'downloading', label: 'Downloading video' },
-    { key: 'removing_watermark', label: 'Removing watermark' },
     { key: 'processing', label: 'Formatting & finalizing' },
     { key: 'done', label: 'Ready to play' }
   ]

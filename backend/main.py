@@ -7,6 +7,9 @@ from schemas import JobCreate, JobStatus
 from redis_client import set_job_status, get_job_status
 from tasks import download_video, finalize_video_task
 
+from fastapi.staticfiles import StaticFiles
+import os
+
 app = FastAPI(title=settings.PROJECT_NAME, openapi_url=f"{settings.API_V1_STR}/openapi.json")
 
 # Set up CORS for frontend
@@ -75,6 +78,23 @@ def download_job(job_id: str):
         raise HTTPException(status_code=404, detail="File not found")
         
     return FileResponse(path=final_path, filename=f"mediaforge_final.mp4", media_type='video/mp4')
+
+# Serve static frontend files if built
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))
+if os.path.exists(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+    
+    @app.get("/{filename}")
+    def get_static_file(filename: str):
+        file_path = os.path.join(frontend_dist, filename)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        # Fallback to index.html for React routing
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+
+    @app.get("/")
+    def read_root_index():
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
 
 @app.get("/health")
 def health_check():

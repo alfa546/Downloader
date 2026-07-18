@@ -23,6 +23,53 @@ def get_platform(url: str) -> str:
     if 'youtube.com' in domain or 'youtu.be' in domain: return 'youtube'
     return 'unknown'
 
+def sanitize_cookies(cookies_str: str) -> str:
+    cookies_str = cookies_str.strip()
+    if not cookies_str:
+        return ""
+        
+    # Check if JSON format
+    if cookies_str.startswith("[") and cookies_str.endswith("]"):
+        try:
+            import json
+            cookies_list = json.loads(cookies_str)
+            netscape_lines = ["# Netscape HTTP Cookie File", "# Converted from JSON"]
+            for cookie in cookies_list:
+                domain = cookie.get("domain", "")
+                include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
+                path = cookie.get("path", "/")
+                secure = "TRUE" if cookie.get("secure", False) else "FALSE"
+                expiration = str(int(cookie.get("expirationDate", cookie.get("expiry", 0))))
+                name = cookie.get("name", "")
+                value = cookie.get("value", "")
+                netscape_lines.append("\t".join([domain, include_subdomains, path, secure, expiration, name, value]))
+            return "\n".join(netscape_lines)
+        except Exception:
+            pass
+            
+    # Standard Netscape formatting & whitespace sanitization
+    lines = []
+    has_header = False
+    for line in cookies_str.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            if "Netscape" in line:
+                has_header = True
+            lines.append(line)
+            continue
+        parts = line.split(None, 6)
+        if len(parts) >= 6:
+            lines.append("\t".join(parts))
+        else:
+            lines.append(line)
+            
+    if not has_header:
+        lines.insert(0, "# Netscape HTTP Cookie File")
+        
+    return "\n".join(lines)
+
 import shutil
 
 @celery_app.task(bind=True)
@@ -62,9 +109,8 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         
     if cookies_str:
         cookies_path = job_dir / f"{platform}_cookies.txt"
-        # Normalize line endings to Unix \n for Linux parser safety
-        normalized_cookies = cookies_str.replace('\r\n', '\n').strip()
-        cookies_path.write_text(normalized_cookies)
+        sanitized_cookies = sanitize_cookies(cookies_str)
+        cookies_path.write_text(sanitized_cookies)
         ydl_opts['cookiefile'] = str(cookies_path)
     
     proxy = os.getenv("PROXY_URL")

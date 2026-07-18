@@ -12,6 +12,9 @@ function App() {
   const [removeWatermark, setRemoveWatermark] = useState(true)
   const [quality, setQuality] = useState('1080p')
 
+  const [stepDurations, setStepDurations] = useState<Record<string, number>>({})
+  const [totalSeconds, setTotalSeconds] = useState<number>(0)
+
   const statusMap: Record<string, string> = {
     'queued': 'Queued for downloading...',
     'downloading': 'Downloading video...',
@@ -24,10 +27,20 @@ function App() {
     'failed': 'Process failed.'
   }
 
+  const getActiveStepKey = (currentStatus: string): string | null => {
+    if (currentStatus === 'queued' || currentStatus === 'submitting') return 'queued';
+    if (currentStatus === 'downloading') return 'downloading';
+    if (currentStatus === 'removing_watermark') return 'removing_watermark';
+    if (['queued_for_processing', 'resizing', 'upscaling'].includes(currentStatus)) return 'processing';
+    return null;
+  }
+
   const submitJob = async () => {
     if (!url) return;
     setError(null)
     setStatus('submitting')
+    setStepDurations({})
+    setTotalSeconds(0)
     try {
       const res = await fetch('http://localhost:8000/jobs', {
         method: 'POST',
@@ -64,6 +77,29 @@ function App() {
     }
     return () => clearInterval(interval)
   }, [jobId, status])
+
+  // Live timer for step durations
+  useEffect(() => {
+    let timerId: number;
+    const isJobActive = jobId && status !== 'done' && status !== 'failed';
+    const isWaitingForUser = status === 'awaiting_quality_choice';
+    
+    if (isJobActive && !isWaitingForUser) {
+      timerId = window.setInterval(() => {
+        setTotalSeconds(prev => prev + 1);
+        
+        const activeStep = getActiveStepKey(status);
+        if (activeStep) {
+          setStepDurations(prev => ({
+            ...prev,
+            [activeStep]: (prev[activeStep] || 0) + 1
+          }));
+        }
+      }, 1000);
+    }
+    
+    return () => clearInterval(timerId);
+  }, [jobId, status]);
 
   const finalizeJob = async () => {
     setShowModal(false)
@@ -181,6 +217,7 @@ function App() {
           <div className="stepper-container">
             {steps.map((step) => {
               const stepState = getStepStatus(step.key);
+              const duration = stepDurations[step.key];
               return (
                 <div key={step.key} className={`step-item ${stepState}`}>
                   <div className="step-indicator">
@@ -189,7 +226,12 @@ function App() {
                     {stepState === 'pending' && '○'}
                     {stepState === 'failed' && '✗'}
                   </div>
-                  <span className="step-label">{step.label}</span>
+                  <span className="step-label">
+                    {step.label}
+                    {duration !== undefined && duration > 0 && (
+                      <span className="step-duration-label"> ({duration}s)</span>
+                    )}
+                  </span>
                 </div>
               );
             })}
@@ -198,6 +240,9 @@ function App() {
           {/* Result */}
           {status === 'done' && (
             <div className="result-container">
+              <div className="total-time-badge">
+                🚀 Processed in {totalSeconds} seconds!
+              </div>
               <video 
                 src={`http://localhost:8000/jobs/${jobId}/download`} 
                 controls 

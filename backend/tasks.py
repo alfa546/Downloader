@@ -30,7 +30,7 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
     output_path = job_dir / "raw.mp4"
     
     ydl_opts = {
-        'format': 'best[ext=mp4]/best',
+        'format': 'bestvideo+bestaudio/best',
         'outtmpl': str(output_path),
         'merge_output_format': 'mp4',
         'quiet': True,

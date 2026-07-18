@@ -49,6 +49,11 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Sec-Fetch-Mode': 'navigate'
+        },
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tvhtml5', 'ios', 'android']
+            }
         }
     }
     
@@ -64,7 +69,9 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         
     if cookies_str:
         cookies_path = job_dir / f"{platform}_cookies.txt"
-        cookies_path.write_text(cookies_str.strip())
+        # Normalize line endings to Unix \n for Linux parser safety
+        normalized_cookies = cookies_str.replace('\r\n', '\n').strip()
+        cookies_path.write_text(normalized_cookies)
         ydl_opts['cookiefile'] = str(cookies_path)
     
     proxy = os.getenv("PROXY_URL")

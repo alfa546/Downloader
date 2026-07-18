@@ -53,7 +53,7 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
     }
     
     proxy = os.getenv("PROXY_URL")
-    if proxy:
+    if proxy and not any(placeholder in proxy for placeholder in ["username", "password", "proxyserver.com", "example.com"]):
         ydl_opts['proxy'] = proxy
     
     try:

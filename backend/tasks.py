@@ -47,10 +47,17 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         },
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android']
+                'player_client': ['tvhtml5', 'ios']
             }
         }
     }
+    
+    # 1. Inject Cookies if provided (100% bypass for datacenter bans)
+    cookies_str = os.getenv("YOUTUBE_COOKIES")
+    if cookies_str:
+        cookies_path = job_dir / "cookies.txt"
+        cookies_path.write_text(cookies_str.strip())
+        ydl_opts['cookiefile'] = str(cookies_path)
     
     proxy = os.getenv("PROXY_URL")
     if proxy and not any(placeholder in proxy for placeholder in ["username", "password", "proxyserver.com", "example.com"]):

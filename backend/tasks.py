@@ -1,8 +1,13 @@
+import os
+# Inject Heroku FFmpeg binary path into system PATH at runtime
+heroku_ffmpeg_path = "/app/vendor/ffmpeg/bin"
+if os.path.exists(heroku_ffmpeg_path) and heroku_ffmpeg_path not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = heroku_ffmpeg_path + os.path.pathsep + os.environ.get("PATH", "")
+
 import yt_dlp
 from celery_app import celery_app
 from config import settings
 from redis_client import set_job_status
-import os
 from urllib.parse import urlparse
 from pathlib import Path
 from watermark import remove_watermark

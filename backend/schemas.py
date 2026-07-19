@@ -12,3 +12,4 @@ class JobStatus(BaseModel):
     status: str
     progress: Optional[float] = None
     error: Optional[str] = None
+    media_type: Optional[str] = None

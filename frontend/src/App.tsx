@@ -13,6 +13,7 @@ function App() {
   const [showModal, setShowModal] = useState(false)
   const [removeWatermark, setRemoveWatermark] = useState(true)
   const [quality, setQuality] = useState('1080p')
+  const [mediaType, setMediaType] = useState<string | null>(null)
 
   const [stepDurations, setStepDurations] = useState<Record<string, number>>({})
   const [totalSeconds, setTotalSeconds] = useState<number>(0)
@@ -68,6 +69,7 @@ function App() {
           const data = await res.json()
           setStatus(data.status)
           setProgress(data.progress ?? null)
+          setMediaType(data.media_type ?? null)
           if (data.status === 'failed') setError(data.error)
           if (data.status === 'awaiting_quality_choice') {
              setShowModal(true)
@@ -244,11 +246,20 @@ function App() {
               <div className="total-time-badge">
                 🚀 Processed in {totalSeconds} seconds!
               </div>
-              <video 
-                src={`${API_BASE_URL}/jobs/${jobId}/download`} 
-                controls 
-                className="video-player"
-              />
+              {mediaType && mediaType.startsWith('image/') ? (
+                <img 
+                  src={`${API_BASE_URL}/jobs/${jobId}/download`} 
+                  alt="Processed media" 
+                  className="video-player"
+                  style={{ maxHeight: '450px', objectFit: 'contain' }}
+                />
+              ) : (
+                <video 
+                  src={`${API_BASE_URL}/jobs/${jobId}/download`} 
+                  controls 
+                  className="video-player"
+                />
+              )}
               <a href={`${API_BASE_URL}/jobs/${jobId}/download`} className="download-btn" download>
                 <Download size={18} />
                 Download Final Video

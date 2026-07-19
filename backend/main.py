@@ -47,7 +47,8 @@ def read_job_status(job_id: str):
         "job_id": job_id,
         "status": status_data.get("status", "unknown"),
         "progress": progress,
-        "error": status_data.get("error")
+        "error": status_data.get("error"),
+        "media_type": status_data.get("media_type")
     }
 
 @app.post("/jobs/{job_id}/finalize")
@@ -77,7 +78,17 @@ def download_job(job_id: str):
     if not final_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
         
-    return FileResponse(path=final_path, filename=f"mediaforge_final.mp4", media_type='video/mp4')
+    # Detect the actual media type
+    from tasks import detect_file_type
+    media_type = detect_file_type(final_path)
+    
+    ext = "mp4"
+    if media_type == "image/gif": ext = "gif"
+    elif media_type == "image/png": ext = "png"
+    elif media_type == "image/jpeg": ext = "jpg"
+    elif media_type == "video/webm": ext = "webm"
+        
+    return FileResponse(path=final_path, filename=f"mediaforge_final.{ext}", media_type=media_type)
 
 # Serve static frontend files if built
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist"))

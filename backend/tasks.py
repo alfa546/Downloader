@@ -114,6 +114,24 @@ def extract_direct_video_urls(page_url: str) -> list:
         print(f"[FALLBACK-EXTRACTOR] Error extracting direct video URLs: {e}")
         return []
 
+def detect_file_type(file_path: Path) -> str:
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(12)
+        if header.startswith(b"GIF87a") or header.startswith(b"GIF89a"):
+            return "image/gif"
+        if header.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        if header.startswith(b"\xff\xd8\xff"):
+            return "image/jpeg"
+        if b"ftyp" in header[4:12]:
+            return "video/mp4"
+        if header.startswith(b"\x1a\x45\xdf\xa3"):
+            return "video/webm"
+    except Exception:
+        pass
+    return "video/mp4"
+
 def fetch_free_proxies():
     try:
         import urllib.request
@@ -308,7 +326,8 @@ def finalize_video_task(self, job_id: str, quality: str):
             except Exception as e:
                 print(f"[FFMPEG-FALLBACK] 4K upscaling/delogo failed: {e}. Falling back to copying raw file directly.")
                 shutil.copy(str(raw_path), str(final_path))
-            set_job_status(job_id, "done", progress=100)
+            media_type = detect_file_type(final_path)
+            set_job_status(job_id, "done", progress=100, media_type=media_type)
         else:
             set_job_status(job_id, "resizing")
             try:
@@ -360,7 +379,8 @@ def finalize_video_task(self, job_id: str, quality: str):
             except Exception as e:
                 print(f"[FFMPEG-FALLBACK] FFmpeg conversion failed: {e}. Falling back to copying raw file directly.")
                 shutil.copy(str(raw_path), str(final_path))
-            set_job_status(job_id, "done")
+            media_type = detect_file_type(final_path)
+            set_job_status(job_id, "done", media_type=media_type)
     except Exception as e:
         set_job_status(job_id, "failed", error=str(e))
         raise e

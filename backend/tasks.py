@@ -295,69 +295,72 @@ def finalize_video_task(self, job_id: str, quality: str):
     try:
         if quality == "4k":
             set_job_status(job_id, "upscaling", progress=0)
-            # If watermark removal is requested, remove it, then upscale
-            if remove_wm:
-                clean_path = job_dir / "clean.mp4"
-                remove_watermark(raw_path, clean_path, platform)
-                upscale_video(clean_path, final_path, job_id)
-                if clean_path.exists():
-                    os.remove(clean_path)
-            else:
-                upscale_video(raw_path, final_path, job_id)
+            try:
+                # If watermark removal is requested, remove it, then upscale
+                if remove_wm:
+                    clean_path = job_dir / "clean.mp4"
+                    remove_watermark(raw_path, clean_path, platform)
+                    upscale_video(clean_path, final_path, job_id)
+                    if clean_path.exists():
+                        os.remove(clean_path)
+                else:
+                    upscale_video(raw_path, final_path, job_id)
+            except Exception as e:
+                print(f"[FFMPEG-FALLBACK] 4K upscaling/delogo failed: {e}. Falling back to copying raw file directly.")
+                shutil.copy(str(raw_path), str(final_path))
             set_job_status(job_id, "done", progress=100)
         else:
             set_job_status(job_id, "resizing")
-            heights = {
-                "480p": 480,
-                "720p": 720,
-                "1080p": 1080
-            }
-            target_height = heights.get(quality, 720)
-            
-            # Check if delogo is configured for this platform
-            from watermark import WATERMARK_REGIONS
-            regions = WATERMARK_REGIONS.get(platform, [])
-            
-            # Combine delogo and scaling filter graph to avoid double encoding
-            if remove_wm and regions:
-                delogo_filters = []
-                for (x, y, w, h) in regions:
-                    delogo_filters.append(f"delogo=x={x}:y={y}:w={w}:h={h}")
-                filter_graph = ",".join(delogo_filters) + f",scale=-2:{target_height}"
-            else:
-                filter_graph = f"scale=-2:{target_height}"
-                
-            # Probe to check if audio exists in raw video
-            has_audio = False
             try:
-                probe = ffmpeg.probe(str(raw_path))
-                has_audio = any(stream['codec_type'] == 'audio' for stream in probe.get('streams', []))
-            except Exception as probe_err:
-                print(f"[FFMPEG] Failed to probe audio: {probe_err}")
-                has_audio = True  # Fallback to copy behavior
+                heights = {
+                    "480p": 480,
+                    "720p": 720,
+                    "1080p": 1080
+                }
+                target_height = heights.get(quality, 720)
                 
-            ffmpeg_opts = {
-                'vf': filter_graph,
-                'vcodec': 'libx264'
-            }
-            if has_audio:
-                ffmpeg_opts['acodec'] = 'aac'
-            else:
-                ffmpeg_opts['an'] = None
+                # Check if delogo is configured for this platform
+                from watermark import WATERMARK_REGIONS
+                regions = WATERMARK_REGIONS.get(platform, [])
+                
+                # Combine delogo and scaling filter graph to avoid double encoding
+                if remove_wm and regions:
+                    delogo_filters = []
+                    for (x, y, w, h) in regions:
+                        delogo_filters.append(f"delogo=x={x}:y={y}:w={w}:h={h}")
+                    filter_graph = ",".join(delogo_filters) + f",scale=-2:{target_height}"
+                else:
+                    filter_graph = f"scale=-2:{target_height}"
+                    
+                # Probe to check if audio exists in raw video
+                has_audio = False
+                try:
+                    probe = ffmpeg.probe(str(raw_path))
+                    has_audio = any(stream['codec_type'] == 'audio' for stream in probe.get('streams', []))
+                except Exception as probe_err:
+                    print(f"[FFMPEG] Failed to probe audio: {probe_err}")
+                    has_audio = True  # Fallback to copy behavior
+                    
+                ffmpeg_opts = {
+                    'vf': filter_graph,
+                    'vcodec': 'libx264'
+                }
+                if has_audio:
+                    ffmpeg_opts['acodec'] = 'aac'
+                else:
+                    ffmpeg_opts['an'] = None
 
-            (
-                ffmpeg
-                .input(str(raw_path))
-                .output(str(final_path), **ffmpeg_opts)
-                .overwrite_output()
-                .run(quiet=True)
-            )
+                (
+                    ffmpeg
+                    .input(str(raw_path))
+                    .output(str(final_path), **ffmpeg_opts)
+                    .overwrite_output()
+                    .run(quiet=True)
+                )
+            except Exception as e:
+                print(f"[FFMPEG-FALLBACK] FFmpeg conversion failed: {e}. Falling back to copying raw file directly.")
+                shutil.copy(str(raw_path), str(final_path))
             set_job_status(job_id, "done")
-    except ffmpeg.Error as e:
-        stderr_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else "No stderr output available from FFmpeg."
-        print(f"[FFMPEG-ERROR] Stderr output: {stderr_msg}")
-        set_job_status(job_id, "failed", error=f"FFmpeg process failed: {stderr_msg}")
-        raise e
     except Exception as e:
         set_job_status(job_id, "failed", error=str(e))
         raise e

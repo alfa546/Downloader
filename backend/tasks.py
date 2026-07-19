@@ -70,6 +70,50 @@ def sanitize_cookies(cookies_str: str) -> str:
         
     return "\n".join(lines)
 
+def extract_direct_video_urls(page_url: str) -> list:
+    try:
+        import urllib.request
+        import re
+        from urllib.parse import urljoin
+        
+        req = urllib.request.Request(
+            page_url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            html = response.read().decode('utf-8', errors='ignore')
+        
+        candidates = []
+        
+        # 1. Look for og:video meta tags
+        og_videos = re.findall(r'<meta\s+property=["\']og:video["\']\s+content=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        candidates.extend(og_videos)
+        
+        # 2. Look for <source src="..."> tags
+        source_tags = re.findall(r'<source\s+[^>]*src=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        candidates.extend(source_tags)
+        
+        # 3. Look for <video src="..."> tags
+        video_tags = re.findall(r'<video\s+[^>]*src=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        candidates.extend(video_tags)
+        
+        # 4. Look for raw .mp4, .m3u8, or .webm urls in text/scripts (common for embedded players)
+        raw_urls = re.findall(r'(https?://[^\s"\'>]+\.(?:mp4|m3u8|webm)(?:\?[^\s"\'>]*)?)', html, re.IGNORECASE)
+        candidates.extend(raw_urls)
+        
+        # Resolve relative URLs
+        resolved = []
+        for url in candidates:
+            url = url.replace('&amp;', '&')
+            full_url = urljoin(page_url, url)
+            if full_url not in resolved:
+                resolved.append(full_url)
+                
+        return resolved
+    except Exception as e:
+        print(f"[FALLBACK-EXTRACTOR] Error extracting direct video URLs: {e}")
+        return []
+
 def fetch_free_proxies():
     try:
         import urllib.request
@@ -148,6 +192,36 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         set_job_status(job_id, "awaiting_quality_choice")
     except Exception as initial_error:
         error_msg = str(initial_error)
+        
+        # Self-healing HTML extractor fallback
+        print(f"[FALLBACK-EXTRACTOR] yt-dlp direct download failed: {error_msg}. Trying HTML direct extraction...")
+        fallback_urls = extract_direct_video_urls(url)
+        if fallback_urls:
+            print(f"[FALLBACK-EXTRACTOR] Found {len(fallback_urls)} candidate URLs in webpage HTML. Attempting fallback download...")
+            success = False
+            for fb_url in fallback_urls[:3]:  # Try top 3 fallback URLs
+                try:
+                    print(f"[FALLBACK-EXTRACTOR] Attempting to download fallback URL: {fb_url}")
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_fb:
+                        ydl_fb.download([fb_url])
+                    print(f"[FALLBACK-EXTRACTOR] Fallback download succeeded for: {fb_url}")
+                    
+                    metadata = {
+                        "url": url,
+                        "remove_watermark": remove_watermark,
+                        "platform": get_platform(url)
+                    }
+                    with open(job_dir / "metadata.json", "w") as f:
+                        json.dump(metadata, f)
+                        
+                    set_job_status(job_id, "awaiting_quality_choice")
+                    success = True
+                    break
+                except Exception as fb_err:
+                    print(f"[FALLBACK-EXTRACTOR] Fallback download failed for {fb_url}: {fb_err}")
+            if success:
+                return
+
         is_blocked = any(block_indicator in error_msg.lower() for block_indicator in [
             "confirm you're not a bot", 
             "login required", 

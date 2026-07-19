@@ -29,10 +29,24 @@ def upscale_video(input_path: Path, output_path: Path, job_id: str):
         print("Real-ESRGAN not available. Using fast FFmpeg 4K scaling...")
         set_job_status(job_id, "upscaling", progress=20)
         try:
+            # Check if there is audio
+            has_audio = False
+            try:
+                probe = ffmpeg.probe(str(input_path))
+                has_audio = any(stream['codec_type'] == 'audio' for stream in probe.get('streams', []))
+            except Exception:
+                has_audio = True
+
+            output_opts = {'vf': 'scale=3840:2160:flags=lanczos', 'vcodec': 'libx264'}
+            if has_audio:
+                output_opts['acodec'] = 'copy'
+            else:
+                output_opts['an'] = None
+
             (
                 ffmpeg
                 .input(str(input_path))
-                .output(str(output_path), vf='scale=3840:2160:flags=lanczos', vcodec='libx264', acodec='copy')
+                .output(str(output_path), **output_opts)
                 .overwrite_output()
                 .run(quiet=True)
             )
@@ -82,15 +96,25 @@ def upscale_video(input_path: Path, output_path: Path, job_id: str):
         video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
         fps_str = video_info['r_frame_rate']
         
-        video_in = ffmpeg.input(str(upscaled_dir / "frame_%04d.png"), framerate=fps_str)
-        audio_in = ffmpeg.input(str(input_path))
+        has_audio = any(stream['codec_type'] == 'audio' for stream in probe.get('streams', []))
         
-        (
-            ffmpeg
-            .output(video_in, audio_in, str(output_path), vcodec='libx264', acodec='copy')
-            .overwrite_output()
-            .run(quiet=True)
-        )
+        video_in = ffmpeg.input(str(upscaled_dir / "frame_%04d.png"), framerate=fps_str)
+        
+        if has_audio:
+            audio_in = ffmpeg.input(str(input_path))
+            (
+                ffmpeg
+                .output(video_in, audio_in, str(output_path), vcodec='libx264', acodec='copy')
+                .overwrite_output()
+                .run(quiet=True)
+            )
+        else:
+            (
+                ffmpeg
+                .output(video_in, str(output_path), vcodec='libx264')
+                .overwrite_output()
+                .run(quiet=True)
+            )
     except Exception as e:
         raise RuntimeError(f"Reassembly failed: {str(e)}")
     finally:

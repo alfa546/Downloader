@@ -327,10 +327,28 @@ def finalize_video_task(self, job_id: str, quality: str):
             else:
                 filter_graph = f"scale=-2:{target_height}"
                 
+            # Probe to check if audio exists in raw video
+            has_audio = False
+            try:
+                probe = ffmpeg.probe(str(raw_path))
+                has_audio = any(stream['codec_type'] == 'audio' for stream in probe.get('streams', []))
+            except Exception as probe_err:
+                print(f"[FFMPEG] Failed to probe audio: {probe_err}")
+                has_audio = True  # Fallback to copy behavior
+                
+            ffmpeg_opts = {
+                'vf': filter_graph,
+                'vcodec': 'libx264'
+            }
+            if has_audio:
+                ffmpeg_opts['acodec'] = 'copy'
+            else:
+                ffmpeg_opts['an'] = None
+
             (
                 ffmpeg
                 .input(str(raw_path))
-                .output(str(final_path), vf=filter_graph, vcodec='libx264', acodec='copy')
+                .output(str(final_path), **ffmpeg_opts)
                 .overwrite_output()
                 .run(quiet=True)
             )

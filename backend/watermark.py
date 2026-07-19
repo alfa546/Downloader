@@ -33,14 +33,29 @@ def remove_watermark(input_path: Path, output_path: Path, platform: str):
         delogo_filters.append(f"delogo=x={x}:y={y}:w={w}:h={h}")
     filter_graph = ",".join(delogo_filters)
 
+    # Check if there is audio
+    has_audio = False
+    try:
+        probe = ffmpeg.probe(str(input_path))
+        has_audio = any(stream['codec_type'] == 'audio' for stream in probe.get('streams', []))
+    except Exception:
+        has_audio = True
+
+    output_opts = {'vf': filter_graph, 'vcodec': 'libx264'}
+    if has_audio:
+        output_opts['acodec'] = 'copy'
+    else:
+        output_opts['an'] = None
+
     try:
         (
             ffmpeg
             .input(str(input_path))
-            .output(str(output_path), vf=filter_graph, vcodec='libx264', acodec='copy')
+            .output(str(output_path), **output_opts)
             .overwrite_output()
             .run(quiet=True)
         )
     except Exception as e:
         print(f"FFmpeg delogo failed, using fallback copy: {e}")
         shutil.copy(str(input_path), str(output_path))
+

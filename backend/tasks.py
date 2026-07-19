@@ -107,7 +107,7 @@ def download_video(self, job_id: str, url: str, remove_watermark: bool = True):
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['tvhtml5', 'ios', 'android']
+                'player_client': ['web', 'default']
             }
         }
     }

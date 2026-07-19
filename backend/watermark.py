@@ -43,7 +43,7 @@ def remove_watermark(input_path: Path, output_path: Path, platform: str):
 
     output_opts = {'vf': filter_graph, 'vcodec': 'libx264'}
     if has_audio:
-        output_opts['acodec'] = 'copy'
+        output_opts['acodec'] = 'aac'
     else:
         output_opts['an'] = None
 

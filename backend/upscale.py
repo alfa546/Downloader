@@ -39,7 +39,7 @@ def upscale_video(input_path: Path, output_path: Path, job_id: str):
 
             output_opts = {'vf': 'scale=3840:2160:flags=lanczos', 'vcodec': 'libx264'}
             if has_audio:
-                output_opts['acodec'] = 'copy'
+                output_opts['acodec'] = 'aac'
             else:
                 output_opts['an'] = None
 
@@ -104,7 +104,7 @@ def upscale_video(input_path: Path, output_path: Path, job_id: str):
             audio_in = ffmpeg.input(str(input_path))
             (
                 ffmpeg
-                .output(video_in, audio_in, str(output_path), vcodec='libx264', acodec='copy')
+                .output(video_in, audio_in, str(output_path), vcodec='libx264', acodec='aac')
                 .overwrite_output()
                 .run(quiet=True)
             )

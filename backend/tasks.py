@@ -341,7 +341,7 @@ def finalize_video_task(self, job_id: str, quality: str):
                 'vcodec': 'libx264'
             }
             if has_audio:
-                ffmpeg_opts['acodec'] = 'copy'
+                ffmpeg_opts['acodec'] = 'aac'
             else:
                 ffmpeg_opts['an'] = None
 
@@ -353,6 +353,11 @@ def finalize_video_task(self, job_id: str, quality: str):
                 .run(quiet=True)
             )
             set_job_status(job_id, "done")
+    except ffmpeg.Error as e:
+        stderr_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else "No stderr output available from FFmpeg."
+        print(f"[FFMPEG-ERROR] Stderr output: {stderr_msg}")
+        set_job_status(job_id, "failed", error=f"FFmpeg process failed: {stderr_msg}")
+        raise e
     except Exception as e:
         set_job_status(job_id, "failed", error=str(e))
         raise e

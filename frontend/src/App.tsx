@@ -154,7 +154,7 @@ function App() {
         Lightning Fast
       </div>
       <h1>HeroDownloader</h1>
-      <p className="subtitle">Download, clean, and upscale videos from any platform — in seconds.</p>
+      <p className="subtitle">Download, clean, and upscale videos from any website — in seconds.</p>
       
       {/* URL Input */}
       <div className="input-group">
@@ -279,10 +279,12 @@ function App() {
       {/* Footer */}
       <div className="app-footer">
         <div className="supported-platforms">
+          <span className="platform-tag" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', fontWeight: 'bold' }}>✨ Any Website</span>
           <span className="platform-tag">YouTube</span>
           <span className="platform-tag">TikTok</span>
           <span className="platform-tag">Instagram</span>
           <span className="platform-tag">Facebook</span>
+          <span className="platform-tag">1000+ More</span>
         </div>
         <p style={{ marginTop: '12px' }}>Built with ⚡ by HeroDownloader</p>
       </div>
